@@ -649,7 +649,6 @@ if __name__ == "__main__":
             trainer_config[k] = getattr(opt, k)
         if not "gpus" in trainer_config:
             del trainer_config["accelerator"]
-            cpu = True
         else:
             gpuinfo = trainer_config["gpus"]
             rank_zero_print(f"Running on GPUs {gpuinfo}")
