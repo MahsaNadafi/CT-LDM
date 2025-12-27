@@ -6,22 +6,29 @@ from collections import defaultdict
 normal_path = "data/CT/single-slice-Normal"
 covid_path = "data/CT/single-slice-COVID19"
 
-out_train = "train.txt"
-out_val = "val.txt"
-out_test = "test.txt"
+out_train = "data/train.txt"
+out_val = "data/val.txt"
+out_test = "data/test.txt"
 
 
 # ------------------------------------------------------
 # STEP 1 — GROUP IMAGES BY PATIENT ID
 # ------------------------------------------------------
+def check_patient_leakage(train_ids, val_ids, test_ids):
+    assert set(train_ids).isdisjoint(val_ids)
+    assert set(train_ids).isdisjoint(test_ids)
+    assert set(val_ids).isdisjoint(test_ids)
+    print("✔ No patient leakage between splits")
+    
 def collect_by_patient(folder, class_label):
     images = glob(os.path.join(folder, "*.png"))
     patient_dict = defaultdict(list)
 
     for img in images:
         name = os.path.basename(img)
-        patient_id = name.split("_slice_")[0]
-        patient_dict[patient_id].append(name)
+        raw_id = name.split("_slice_")[0]
+        patient_id = f"{class_label}_{raw_id}"
+        patient_dict[patient_id].append(img)
 
     return patient_dict
 
@@ -99,3 +106,35 @@ write_split(out_val, val_ids,     all_normal, all_covid)
 write_split(out_test, test_ids,   all_normal, all_covid)
 
 print("train.txt, val.txt, test.txt generated.")
+
+
+check_patient_leakage(train_ids, val_ids, test_ids)
+
+
+def count_slices_by_class(patient_list, normal_dict, covid_dict):
+    normal_count = 0
+    covid_count = 0
+
+    for pid in patient_list:
+        if pid in normal_dict:
+            normal_count += len(normal_dict[pid])
+        else:
+            covid_count += len(covid_dict[pid])
+
+    return normal_count, covid_count
+
+
+train_n, train_c = count_slices_by_class(train_ids, all_normal, all_covid)
+val_n,   val_c   = count_slices_by_class(val_ids,   all_normal, all_covid)
+test_n,  test_c  = count_slices_by_class(test_ids,  all_normal, all_covid)
+train_sum = train_n+train_c
+test_sum = test_n+test_c
+val_sum = val_n+val_c
+total = val_sum+test_sum+train_sum
+
+
+print("\nPer-class slice distribution:")
+print(f"Train  → Normal: {train_n}, Covid: {train_c}, Sum: {train_sum}")
+print(f"Val    → Normal: {val_n}, Covid: {val_c}, Sum: {val_sum}")
+print(f"Test   → Normal: {test_n}, Covid: {test_c}, Sum: {test_sum}")
+print(f"split   → Train: {train_sum/total}, Val: {val_sum/total}, Test: {test_sum/total}")
