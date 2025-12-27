@@ -78,32 +78,32 @@ class DatasetBase(Dataset):
 
 class FFHQ(DatasetBase):
     def __init__(self, **kwargs):
-        super().__init__(data_root="data/CT/single slice COVID19 CT Data", **kwargs)
+        super().__init__(data_root="../datasets/ffhq_1024", **kwargs)
 
 
 class FFHQTrain(DatasetBase):
     def __init__(self, **kwargs):
-        super().__init__(txt_file="data/CT/single slice COVID19 CT Data/train.txt", data_root="data/CT/single slice COVID19 CT Data", **kwargs)
+        super().__init__(txt_file="data/ffhq_train.txt", data_root="../datasets/ffhq_1024", **kwargs)
 
 
 class FFHQValidation(DatasetBase):
     def __init__(self, **kwargs):
-        super().__init__(txt_file="data/CT/single slice COVID19 CT Data/val.txt", data_root="data/CT/single slice COVID19 CT Data", **kwargs)
+        super().__init__(txt_file="data/ffhq_val.txt", data_root="../datasets/ffhq_1024", **kwargs)
 
 
 class CelebAHQ(DatasetBase):
     def __init__(self, **kwargs):
-        super().__init__(data_root="data/CT/single slice COVID19 CT Data", **kwargs)
+        super().__init__(data_root="../datasets/celeba_hq_256", **kwargs)
 
 
 class CelebAHQTrain(DatasetBase):
     def __init__(self, **kwargs):
-        super().__init__(txt_file="data/CT/single slice COVID19 CT Data/train.txt", data_root="data/CT/single slice COVID19 CT Data", **kwargs)
+        super().__init__(txt_file="data/celebahq_train.txt", data_root="../datasets/celeba_hq_256", **kwargs)
 
 
 class CelebAHQValidation(DatasetBase):
     def __init__(self, **kwargs):
-        super().__init__(txt_file="data/CT/single slice COVID19 CT Data/val.txt", data_root="data/CT/single slice COVID19 CT Data", **kwargs)
+        super().__init__(txt_file="data/celebahq_val.txt", data_root="../datasets/celeba_hq_256", **kwargs)
 
 
 class LSUNBedroomTrain(DatasetBase):
@@ -128,12 +128,12 @@ class LSUNChurchValidation(DatasetBase):
 
 class LSUNTowerTrain(DatasetBase):
     def __init__(self, **kwargs):
-        super().__init__(txt_file="data/CT/single slice COVID19 CT Data/train.txt", data_root="data/CT/single slice COVID19 CT Data", **kwargs)
+        super().__init__(txt_file="data/tower_train.txt", data_root="../datasets/lsun_tower/train", **kwargs)
 
 
 class LSUNTowerValidation(DatasetBase):
     def __init__(self, **kwargs):
-        super().__init__(txt_file="data/CT/single slice COVID19 CT Data/val.txt", data_root="data/CT/single slice COVID19 CT Data", **kwargs)
+        super().__init__(txt_file="data/tower_val.txt", data_root="../datasets/lsun_tower/train", **kwargs)
 
 class DIV2KBase(DatasetBase):
     def __init__(self, data_root, repeat=1, augment=False, **kwargs):
