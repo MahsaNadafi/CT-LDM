@@ -1,54 +1,118 @@
-# Arbitrary-Scale Image Generation and Upsampling using Latent Diffusion Model and Implicit Neural Decoder (CVPR 2024)
+# Arbitrary-Scale CT Image Super-Resolution  
+### using Latent Diffusion Model and Implicit Neural Decoder
 
-## Data preparation
-Download the dataset you want to use and put it in the `../datasets/`
-- [FFHQ](https://github.com/NVlabs/ffhq-dataset)
-- [CelebaHQ](https://www.kaggle.com/badasstechie/celebahq-resized-256x256)
-- [LSUN](https://github.com/fyu/lsun)
-- [DIV2K](https://data.vision.ee.ethz.ch/cvl/DIV2K/)
-- [Flickr2K](http://cv.snu.ac.kr/research/EDSR/Flickr2K.tar)
+This repository focuses on **arbitrary-scale super-resolution (SR) of CT images** using a **Latent Diffusion Model (LDM)** combined with an **Implicit Neural Decoder (LIIF-style)**.
 
-Please place the txt file to split into training and validation images in the `/data`.
-The split file for the lsun dataset can be downloaded from [here](https://ommer-lab.com/files/lsun.zip).
+Unlike conventional SR methods limited to fixed upscaling factors, this framework enables **continuous-resolution CT reconstruction**, allowing high-quality image generation at **any target scale** while preserving anatomical structures and intensity consistency.
+
+The method is designed specifically for **medical imaging**, with:
+- Patient-wise data splitting (no leakage)
+- Realistic low-resolution degradation
+- Clinically relevant evaluation metrics
+
+---
+
+## Project Goals
+
+- Perform **CT image super-resolution at arbitrary scales**
+- Avoid hallucination of non-existent anatomical structures
+- Ensure **patient-safe generalization**
+- Provide a **reproducible research baseline** for medical diffusion SR
+
+---
+
+## Data Preparation
+
+### Dataset Structure
+
+```
+data/CT/
+├── single-slice-Normal/
+│   ├── normal_83_ns002i00001_slice_001.png
+│   ├── ...
+├── single-slice-COVID19/
+│   ├── covid_p16_ns002i00001_slice_001.png
+│   ├── ...
+```
+
+Each filename **must include a patient ID**, which is used for patient-wise splitting.
+
+---
+
+### Dataset Statistics
+
+**Total patients**
+- Normal patients: **149**
+- COVID-19 patients: **221**
+
+---
+
+### Patient-Wise Splitting (No Leakage)
+
+```bash
+python split.py
+```
+
+Generated files:
+```
+data/train.txt
+data/val.txt
+data/test.txt
+```
 
 ## Model Training
-### Training First-Stage Models
 
-```
-CUDA_VISIBLE_DEVICES=<GPU_ID> python main.py --base configs/first-stage/<config_spec>.yaml -t --gpus 0, --scale_lr False
-```
+### First-Stage Autoencoder
 
-### Training LDMs
-Creates or modifies the config file in `configs/latent-diffusion/`.
-Type ckpt_path to load the first_stage_model.
-
-```
-CUDA_VISIBLE_DEVICES=<GPU_ID> python main.py --base configs/latent-diffusion/<config_spec>.yaml -t --gpus 0, --scale_lr False
+```bash
+CUDA_VISIBLE_DEVICES=<GPU_ID> \
+python main.py \
+  --base configs/first-stage/<config_spec>.yaml \
+  -t --gpus 0, --scale_lr False
 ```
 
+---
 
-## Test
+### Latent Diffusion Model
 
-### Super-Resolution
-```
-python eval_sr.py --exp logs/<exp_path> --lr_size <input_lr_image_size> --scale_ratio <scale>
+```bash
+CUDA_VISIBLE_DEVICES=<GPU_ID> \
+python main.py \
+  --base configs/latent-diffusion/<config_spec>.yaml \
+  -t --gpus 0, --scale_lr False
 ```
 
-### Image Generation
+---
+
+## Evaluation
+
+### Arbitrary-Scale Super-Resolution
+
+```bash
+python eval_sr.py --exp logs/<exp_path> --lr_size <input_lr_size> --scale_ratio <scale>
 ```
-python inference.py --log_dir logs/<exp_path> --save_dir <output_path> --size <output_size_1> <output_size_2> ...
-```
-Measure the FID or SSIM between the real image and the generated image.
+
+### Metrics
+- PSNR
+- SSIM
+- MAE
+- HFEN
+
+---
+
+## Medical Disclaimer
+
+Research use only. Not clinically validated.
+
+---
 
 ## Citation
 
-If you find this work useful, please consider citing our paper.
-
-```
+```bibtex
 @inproceedings{kim2024arbitraryscale,
-      title={Arbitrary-Scale Image Generation and Upsampling using Latent Diffusion Model and Implicit Neural Decoder},
-      author={Kim, Jinseok and Kim, Tae-Kyun},
-      booktitle={CVPR},
-      year={2024}
+  title={Arbitrary-Scale Image Generation and Upsampling using Latent Diffusion Model and Implicit Neural Decoder},
+  author={Kim, Jinseok and Kim, Tae-Kyun},
+  booktitle={CVPR},
+  year={2024}
 }
 ```
