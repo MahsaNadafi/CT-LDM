@@ -96,7 +96,6 @@ python eval_sr.py --exp logs/<exp_path> --lr_size <input_lr_size> --scale_ratio 
 - PSNR
 - SSIM
 - MAE
-- HFEN
 
 ---
 
