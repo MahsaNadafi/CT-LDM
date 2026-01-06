@@ -34,7 +34,7 @@ model:
     first_stage_config:
       target: ldm.models.firststagemodel.FirstStageModel
       params:
-        ckpt_path: logs/2025-02-28T18-56-00_first_stage_sr_tower_16_32x32x32_256/checkpoints/epoch=000228.ckpt # first_stage_model checkpoint
+        ckpt_path:  # first_stage_model checkpoint
         lossconfig:
           target: torch.nn.Identity
 
@@ -64,12 +64,12 @@ data:
     batch_size: 8
     wrap: True
     train:
-      target: ldm.data.datasets.FFHQ
+      target: ldm.data.datasets.CTSRTrain
       params:
         size: 256
         lr_size: 32
     validation:
-      target: ldm.data.datasets.CelebAHQ
+      target: ldm.data.datasets.CTSRValidation
       params:
         size: 256
         lr_size: 32
