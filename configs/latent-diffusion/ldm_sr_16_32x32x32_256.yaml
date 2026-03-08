@@ -34,7 +34,7 @@ model:
     first_stage_config:
       target: ldm.models.firststagemodel.FirstStageModel
       params:
-        ckpt_path: logs/2026-01-05T18-09-39_first_stage_sr_32_256/checkpoints/epoch=000361.ckpt # first_stage_model checkpoint
+        ckpt_path: logs/2026-01-05T18-09-39_first_stage_sr_32_256/checkpoints/epoch=000534.ckpt # first_stage_model checkpoint
         lossconfig:
           target: torch.nn.Identity
 
