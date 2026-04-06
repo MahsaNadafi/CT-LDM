@@ -20,12 +20,17 @@ from einops import rearrange
 
 import lpips
 
-from ignite.engine import *
-from ignite.handlers import *
-from ignite.metrics import *
-from ignite.utils import *
-from ignite.contrib.metrics.regression import *
-from ignite.contrib.metrics import *
+try:
+    from ignite.engine import Engine
+except ImportError:
+    class Engine:
+        """Minimal fallback so ignite is optional for this script."""
+        def __init__(self, process_function):
+            self.process_function = process_function
+
+        def run(self, data):
+            for batch in data:
+                self.process_function(self, batch)
 import time
 
 
