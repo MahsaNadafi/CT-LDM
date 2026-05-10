@@ -28,9 +28,21 @@ from ldm.models.firststagemodel import FirstStageModel
 from ldm.modules.diffusionmodules.util import make_beta_schedule, extract_into_tensor, noise_like
 from ldm.models.diffusion.ddim import DDIMSampler
 from ldm.modules.attention import CrossAttention
+from ldm.modules.evaluate.ssim import ssim
 
 import random # For SingleStageDiffusion
 import os # For SingleStageDiffusion
+
+
+def calculate_psnr(pred, target, data_range=2.0, eps=1e-8):
+    mse = F.mse_loss(pred.float(), target.float())
+    return 20 * torch.log10(pred.new_tensor(data_range)) - 10 * torch.log10(mse.clamp_min(eps))
+
+
+def calculate_ssim(pred, target):
+    pred = ((pred.float() + 1.0) * 0.5).clamp(0.0, 1.0)
+    target = ((target.float() + 1.0) * 0.5).clamp(0.0, 1.0)
+    return ssim(pred, target)
 
 
 __conditioning_keys__ = {'concat': 'c_concat',
@@ -446,6 +458,12 @@ class DDPM(pl.LightningModule):
             loss_dict_ema = {key + '_ema': loss_dict_ema[key] for key in loss_dict_ema}
         self.log_dict(loss_dict_no_ema, prog_bar=False, logger=True, on_step=False, on_epoch=True)
         self.log_dict(loss_dict_ema, prog_bar=False, logger=True, on_step=False, on_epoch=True)
+
+    @torch.no_grad()
+    def test_step(self, batch, batch_idx):
+        _, loss_dict = self.shared_step(batch)
+        loss_dict = {key.replace('val/', 'test/', 1): value for key, value in loss_dict.items()}
+        self.log_dict(loss_dict, prog_bar=False, logger=True, on_step=False, on_epoch=True)
 
     def on_train_batch_end(self, *args, **kwargs):
         if self.use_ema:
@@ -1063,15 +1081,23 @@ class LatentDiffusion(DDPM):
 
         if self.parameterization == "x0":
             target = x_start
+            x_0_pred = model_output
         elif self.parameterization == "eps":
             target = noise
+            x_0_pred = self.predict_start_from_noise(x_noisy, t=t, noise=model_output)
         elif self.parameterization == "v":
             target = mean * noise - std * x_start
+            x_0_pred = mean * x_noisy - std * model_output
         else:
             raise NotImplementedError()
 
         loss_simple = self.get_loss(model_output, target, mean=False).mean([1, 2, 3])
         loss_dict.update({f'{prefix}/loss_simple': loss_simple.mean()})
+
+        with torch.no_grad():
+            y_pred = self.decode_first_stage(x_0_pred.detach(), output_size=int(y.shape[-1]))
+            loss_dict.update({f'{prefix}/psnr': calculate_psnr(y_pred, y)})
+            loss_dict.update({f'{prefix}/ssim': calculate_ssim(y_pred, y)})
 
         self.logvar = self.logvar.to(self.device)
         logvar_t = self.logvar[t].to(self.device)

@@ -19,6 +19,7 @@ import random
 from ldm.util import default, instantiate_from_config
 from ldm.modules.diffusionmodules.util import extract_into_tensor
 from ldm.models.diffusion.ddpm import LatentDiffusion
+from ldm.models.diffusion.ddpm import calculate_psnr, calculate_ssim
 
 
 class FinetuningDiffusion(LatentDiffusion):
@@ -69,6 +70,12 @@ class FinetuningDiffusion(LatentDiffusion):
             loss_dict_ema = {key + '_ema': loss_dict_ema[key] for key in loss_dict_ema}
         self.log_dict(loss_dict_no_ema, prog_bar=False, logger=True, on_step=False, on_epoch=True)
         self.log_dict(loss_dict_ema, prog_bar=False, logger=True, on_step=False, on_epoch=True)
+
+    @torch.no_grad()
+    def test_step(self, batch, batch_idx):
+        _, loss_dict = self.shared_step(batch)
+        loss_dict = {key.replace('val/', 'test/', 1): value for key, value in loss_dict.items()}
+        self.log_dict(loss_dict, prog_bar=False, logger=True, on_step=False, on_epoch=True)
 
     def forward(self, x, c, y, t=None, *args, **kwargs):
         t = torch.randint(0, self.num_timesteps, (x.shape[0],), device=self.device).long()
@@ -121,6 +128,9 @@ class FinetuningDiffusion(LatentDiffusion):
 
         loss_lpips = lpips_alex_loss(y_pred, y)
         loss_dict.update({f'{prefix}/loss_lpips': loss_lpips.mean()})
+
+        loss_dict.update({f'{prefix}/psnr': calculate_psnr(y_pred.detach(), y.detach())})
+        loss_dict.update({f'{prefix}/ssim': calculate_ssim(y_pred.detach(), y.detach())})
 
         loss_dict.update({f'{prefix}/loss_l1_image':loss_l1_image})
 

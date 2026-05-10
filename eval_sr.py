@@ -14,6 +14,7 @@ from torch.utils.data import DataLoader
 
 from ldm.util import instantiate_from_config
 from ldm.models.diffusion.ddim import DDIMSampler
+from ldm.modules.evaluate.ssim import ssim
 from torch.nn.functional import interpolate
 
 from einops import rearrange
@@ -88,6 +89,10 @@ def calc_psnr(sr, hr, dataset=None, scale=1, rgb_range=1):
     return -10 * torch.log10(mse)
 
 
+def calc_ssim(sr, hr):
+    return ssim(sr, hr)
+
+
 def load_model_from_config(config, ckpt):
     print(f"Loading model from {ckpt}")
     model = instantiate_from_config(config.model)
@@ -133,6 +138,7 @@ def eval_psnr(lr_size, scale_ratio, first_k, eval_type=None, eval_bsize=None, ve
         raise NotImplementedError
 
     psnr_res = Averager()
+    ssim_res = Averager()
     lpips_res = Averager()
 
     pbar = tqdm(loader, leave=False, desc='val')
@@ -165,6 +171,9 @@ def eval_psnr(lr_size, scale_ratio, first_k, eval_type=None, eval_bsize=None, ve
         psnr = metric_fn(pred, gt)
         psnr_res.add(psnr.item(), b_size)
 
+        ssim_value = calc_ssim(pred, gt)
+        ssim_res.add(ssim_value.item(), b_size)
+
         norm = transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
         pred_n = norm(pred).detach().cpu()
         gt_n = norm(gt).detach().cpu()
@@ -184,9 +193,10 @@ def eval_psnr(lr_size, scale_ratio, first_k, eval_type=None, eval_bsize=None, ve
                 Image.fromarray(img_lr).save(f'{imgs_path}/{i:6d}_lr.png')
 
         if verbose:
-            pbar.set_description('pnsr: {:.4f}, lpips: {:.4f}'.format(psnr_res.item(), lpips_res.item()))
+            pbar.set_description('psnr: {:.4f}, ssim: {:.4f}, lpips: {:.4f}'.format(
+                psnr_res.item(), ssim_res.item(), lpips_res.item()))
 
-    fin_res = {'PSNR': psnr_res.item(), 'LPIPS': lpips_res.item()}
+    fin_res = {'PSNR': psnr_res.item(), 'SSIM': ssim_res.item(), 'LPIPS': lpips_res.item()}
 
     return fin_res
 
