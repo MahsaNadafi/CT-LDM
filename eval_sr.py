@@ -101,8 +101,8 @@ def load_model_from_config(config, ckpt):
     return model
 
 
-def eval_psnr(lr_size, scale_ratio, first_k, eval_type=None, eval_bsize=None, verbose=False, save_image=False, eta=0.0,
-              steps=200):
+def eval_psnr(lr_size, scale_ratio, first_k, split='validation', eval_type=None, eval_bsize=None, verbose=False,
+              save_image=False, eta=0.0, steps=200):
     config = OmegaConf.load(config_path)
     ignore_keys = config.model.params.get('ignore_keys', [])
     ignore_keys.append('loss_fn')
@@ -116,13 +116,22 @@ def eval_psnr(lr_size, scale_ratio, first_k, eval_type=None, eval_bsize=None, ve
 
     config.data.params.batch_size = args.batch_size
     config.data.params.train.params.first_k = 1
-    config.data.params.validation.params.first_k = first_k
-    config.data.params.validation.params.size = output_size
+    eval_data_cfg = config.data.params.validation
+    eval_data_cfg.params.first_k = first_k
+    eval_data_cfg.params.size = output_size
+
+    if split == 'test':
+        config.data.params.test = OmegaConf.create(OmegaConf.to_container(eval_data_cfg, resolve=False))
+        config.data.params.test.target = 'ldm.data.datasets.CTSRTest'
 
     data = instantiate_from_config(config.data)
     data.prepare_data()
     data.setup()
-    loader = data._val_dataloader()
+    if split == 'test':
+        loader = data._test_dataloader()
+    else:
+        loader = data._val_dataloader()
+    print(f'Evaluating {len(loader.dataset)} {split} samples in {len(loader)} batches')
 
     loss_fn_alex = lpips.LPIPS(net='alex')
 
@@ -184,7 +193,8 @@ def eval_psnr(lr_size, scale_ratio, first_k, eval_type=None, eval_bsize=None, ve
         lpips_res.add(loss_lpips.item(), b_size)
 
         if save_image:
-            imgs_path = os.path.join(exp, 'eval_imgs')
+            imgs_dir = 'eval_imgs' if split == 'validation' else f'eval_{split}_imgs'
+            imgs_path = os.path.join(exp, imgs_dir)
             os.makedirs(imgs_path, exist_ok=True)
             start_idx = num_samples - b_size
             for i in range(b_size):
@@ -203,6 +213,7 @@ def eval_psnr(lr_size, scale_ratio, first_k, eval_type=None, eval_bsize=None, ve
                 num_samples, psnr_res.item(), ssim_res.item(), lpips_res.item()))
 
     fin_res = {
+        'split': split,
         'num_samples': num_samples,
         'PSNR': psnr_res.item(),
         'SSIM': ssim_res.item(),
@@ -223,19 +234,22 @@ if __name__ == '__main__':
     parser.add_argument('--steps', type=int, default=200, help='DDIM steps')
     parser.add_argument('--eta', type=float, default=1.0, help='eta of DDIM')
     parser.add_argument('--scale_ratio', type=float, required=True, help='Output size')
+    parser.add_argument('--split', type=str, default='validation', choices=['validation', 'test'],
+                        help='Dataset split to evaluate')
     parser.add_argument('--verbose', type=str2bool, default=False, help='Print DDIM progress')
     parser.add_argument('--save_image', type=str2bool, default=False, help='Save outputs')
 
     args = parser.parse_args()
 
     exp = args.exp
-    exp_data = exp.split('/')[-1].split('_')[0]
+    exp_data = os.path.basename(os.path.normpath(exp)).split('_')[0]
     config_path = os.path.join(exp, 'configs', f'{exp_data}-project.yaml')
     ckpt_path = os.path.join(exp, 'checkpoints', 'last.ckpt')
 
-    fin_res = eval_psnr(lr_size=args.lr_size, scale_ratio=args.scale_ratio, first_k=args.first_k, verbose=args.verbose,
-                        save_image=args.save_image, eta=args.eta, steps=args.steps)
-    metrics_path = os.path.join(exp, 'eval_metrics.yaml')
+    fin_res = eval_psnr(lr_size=args.lr_size, scale_ratio=args.scale_ratio, first_k=args.first_k, split=args.split,
+                        verbose=args.verbose, save_image=args.save_image, eta=args.eta, steps=args.steps)
+    metrics_name = 'eval_metrics.yaml' if args.split == 'validation' else f'eval_{args.split}_metrics.yaml'
+    metrics_path = os.path.join(exp, metrics_name)
     OmegaConf.save(config=OmegaConf.create(fin_res), f=metrics_path)
     print(f'Saved metrics to {metrics_path}')
     print(fin_res)
