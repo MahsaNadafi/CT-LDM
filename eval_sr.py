@@ -184,15 +184,19 @@ def eval_psnr(lr_size, scale_ratio, first_k, eval_type=None, eval_bsize=None, ve
         lpips_res.add(loss_lpips.item(), b_size)
 
         if save_image:
-            save_image = False
             imgs_path = os.path.join(exp, 'eval_imgs')
             os.makedirs(imgs_path, exist_ok=True)
+            start_idx = num_samples - b_size
             for i in range(b_size):
+                sample_idx = start_idx + i
                 img_pred = (pred[i].permute(1, 2, 0) * 255).to(torch.uint8).detach().cpu().numpy()
-                Image.fromarray(img_pred).save(f'{imgs_path}/{i:6d}_pred.png')
+                Image.fromarray(img_pred).save(f'{imgs_path}/{sample_idx:06d}_pred.png')
+
+                img_gt = (gt[i].permute(1, 2, 0) * 255).to(torch.uint8).detach().cpu().numpy()
+                Image.fromarray(img_gt).save(f'{imgs_path}/{sample_idx:06d}_gt.png')
 
                 img_lr = (lr[i].permute(1, 2, 0) * 255).to(torch.uint8).detach().cpu().numpy()
-                Image.fromarray(img_lr).save(f'{imgs_path}/{i:6d}_lr.png')
+                Image.fromarray(img_lr).save(f'{imgs_path}/{sample_idx:06d}_lr.png')
 
         if verbose:
             pbar.set_description('samples: {}, psnr: {:.4f}, ssim: {:.4f}, lpips: {:.4f}'.format(
