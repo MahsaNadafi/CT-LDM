@@ -140,6 +140,7 @@ def eval_psnr(lr_size, scale_ratio, first_k, eval_type=None, eval_bsize=None, ve
     psnr_res = Averager()
     ssim_res = Averager()
     lpips_res = Averager()
+    num_samples = 0
 
     pbar = tqdm(loader, leave=False, desc='val')
     for batch in pbar:
@@ -150,6 +151,7 @@ def eval_psnr(lr_size, scale_ratio, first_k, eval_type=None, eval_bsize=None, ve
         cond = batch['image_lr']
 
         b_size = min(args.batch_size, cond.shape[0])
+        num_samples += b_size
 
         start = time.time()
         if hasattr(model, 'get_cond'):
@@ -193,10 +195,15 @@ def eval_psnr(lr_size, scale_ratio, first_k, eval_type=None, eval_bsize=None, ve
                 Image.fromarray(img_lr).save(f'{imgs_path}/{i:6d}_lr.png')
 
         if verbose:
-            pbar.set_description('psnr: {:.4f}, ssim: {:.4f}, lpips: {:.4f}'.format(
-                psnr_res.item(), ssim_res.item(), lpips_res.item()))
+            pbar.set_description('samples: {}, psnr: {:.4f}, ssim: {:.4f}, lpips: {:.4f}'.format(
+                num_samples, psnr_res.item(), ssim_res.item(), lpips_res.item()))
 
-    fin_res = {'PSNR': psnr_res.item(), 'SSIM': ssim_res.item(), 'LPIPS': lpips_res.item()}
+    fin_res = {
+        'num_samples': num_samples,
+        'PSNR': psnr_res.item(),
+        'SSIM': ssim_res.item(),
+        'LPIPS': lpips_res.item(),
+    }
 
     return fin_res
 
@@ -224,5 +231,8 @@ if __name__ == '__main__':
 
     fin_res = eval_psnr(lr_size=args.lr_size, scale_ratio=args.scale_ratio, first_k=args.first_k, verbose=args.verbose,
                         save_image=args.save_image, eta=args.eta, steps=args.steps)
+    metrics_path = os.path.join(exp, 'eval_metrics.yaml')
+    OmegaConf.save(config=OmegaConf.create(fin_res), f=metrics_path)
+    print(f'Saved metrics to {metrics_path}')
     print(fin_res)
 
