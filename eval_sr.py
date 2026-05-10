@@ -158,7 +158,8 @@ def eval_psnr(lr_size, scale_ratio, first_k, eval_type=None, eval_bsize=None, ve
             cond = model.get_cond(cond)
 
         samples, _ = model.sample_log(cond=cond, batch_size=b_size, ddim=True,
-                                      ddim_steps=steps, eta=eta, log_every_t=20)
+                                      ddim_steps=steps, eta=eta, log_every_t=20,
+                                      print_bar="final" if verbose else False)
 
         pred = model.decode_first_stage(samples, output_size=output_size)
         pred = pred * 0.5 + 0.5
