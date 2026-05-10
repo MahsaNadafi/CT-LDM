@@ -84,3 +84,8 @@ class CTSRValidation(DatasetBase):
     def __init__(self, **kwargs):
         super().__init__(txt_file="data/val.txt", data_root="", **kwargs)
 
+
+class CTSRTest(DatasetBase):
+    def __init__(self, **kwargs):
+        super().__init__(txt_file="data/test.txt", data_root="", **kwargs)
+
