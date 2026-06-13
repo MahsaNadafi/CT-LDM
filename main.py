@@ -1,4 +1,4 @@
-import argparse, os, sys, datetime, glob, importlib, csv
+import argparse, os, sys, datetime, glob, importlib
 import numpy as np
 import time
 import torch
@@ -25,6 +25,43 @@ MULTINODE_HACKS = False
 @rank_zero_only
 def rank_zero_print(*args):
     print(*args)
+
+
+class KeyValueLogger(pl.loggers.TestTubeLogger):
+    """Write Lightning metrics as plain key=value log lines."""
+
+    def __init__(self, *args, filename="metrics.log", **kwargs):
+        super().__init__(*args, **kwargs)
+        self.filename = filename
+
+    @staticmethod
+    def _to_log_value(value):
+        if isinstance(value, torch.Tensor):
+            value = value.detach()
+            if value.numel() == 1:
+                value = value.item()
+            else:
+                value = value.mean().item()
+        elif hasattr(value, "item"):
+            value = value.item()
+
+        if isinstance(value, float):
+            return f"{value:.8g}"
+        return str(value)
+
+    @rank_zero_only
+    def log_metrics(self, metrics, step=None):
+        os.makedirs(self.save_dir, exist_ok=True)
+        log_path = os.path.join(self.save_dir, self.filename)
+
+        parts = []
+        if step is not None:
+            parts.append(f"step={step}")
+        for key in sorted(metrics):
+            parts.append(f"{key}={self._to_log_value(metrics[key])}")
+
+        with open(log_path, "a", encoding="utf-8") as f:
+            f.write(" ".join(parts) + "\n")
 
 def modify_weights(w, scale = 1e-6, n=2):
     """Modify weights to accomodate concatenation to unet"""
@@ -706,7 +743,7 @@ if __name__ == "__main__":
                 }
             },
             "testtube": {
-                "target": "pytorch_lightning.loggers.TestTubeLogger",
+                "target": "main.KeyValueLogger",
                 "params": {
                     "name": "testtube",
                     "save_dir": logdir,
