@@ -30,8 +30,11 @@ def rank_zero_print(*args):
 class KeyValueLogger(pl.loggers.TestTubeLogger):
     """Write Lightning metrics as plain key=value log lines."""
 
-    def __init__(self, *args, filename="metrics.log", **kwargs):
+    def __init__(self, *args, filename=None, **kwargs):
         super().__init__(*args, **kwargs)
+        if filename is None:
+            timestamp = datetime.datetime.now().strftime("%Y-%m-%dT%H-%M-%S")
+            filename = f"metrics_{timestamp}.log"
         self.filename = filename
 
     @staticmethod
