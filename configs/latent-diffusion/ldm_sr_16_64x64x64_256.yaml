@@ -16,7 +16,7 @@ model:
     conditioning_key: concat
     concat_mode: True
     cond_stage_trainable: False
-    monitor: val/loss_simple_ema
+    monitor: val/psnr
     scale_by_std: True
 
     unet_config:
@@ -76,6 +76,9 @@ data:
         first_k: 100
 
 lightning:
+  modelcheckpoint:
+    params:
+      mode: max
   callbacks:
     image_logger:
       target: main.ImageLogger
