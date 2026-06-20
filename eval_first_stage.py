@@ -35,11 +35,29 @@ def calc_psnr(pred, gt):
     return -10 * torch.log10(mse)
 
 
+def calc_psnr_per_sample(pred, gt):
+    mse = (pred - gt).pow(2).flatten(1).mean(dim=1)
+    psnr = -10 * torch.log10(mse.clamp_min(torch.finfo(mse.dtype).eps))
+    psnr[mse == 0] = float("inf")
+    return psnr
+
+
 def move_fconfig_to_device(fconfig, device):
     moved = {}
     for key, value in fconfig.items():
         moved[key] = value.to(device) if isinstance(value, torch.Tensor) else value
     return moved
+
+
+def unwrap_dataset(dataset):
+    return unwrap_dataset(dataset.data) if hasattr(dataset, "data") else dataset
+
+
+def get_sample_paths(loader):
+    dataset = unwrap_dataset(loader.dataset)
+    if hasattr(dataset, "image_paths"):
+        return list(dataset.image_paths)
+    return None
 
 
 @torch.no_grad()
@@ -79,15 +97,18 @@ def evaluate(args):
     data.prepare_data()
     data.setup()
     loader = data._test_dataloader() if args.split == "test" else data._val_dataloader()
+    sample_paths = get_sample_paths(loader)
 
     psnr_res = Averager()
     ssim_res = Averager()
     mae_res = Averager()
     rec_loss_res = Averager()
     num_samples = 0
+    sample_rows = []
 
     pbar = tqdm(loader, desc=f"first-stage {args.split}", leave=False)
     for batch in pbar:
+        batch_start = num_samples
         inp, gt, fconfig = model.get_input(batch, model.valconfig)
         inp = inp.to(device)
         gt = gt.to(device)
@@ -95,17 +116,34 @@ def evaluate(args):
 
         pred, _ = model(inp, sample_posterior=False, **fconfig)
         rec_loss, log_dict = model.loss(gt, pred, split="val")
+        rec_loss_per_sample = torch.abs(gt.contiguous() - pred.contiguous()).flatten(1).mean(dim=1)
 
         pred = (pred * 0.5 + 0.5).clamp(0, 1)
         gt = (gt * 0.5 + 0.5).clamp(0, 1)
 
         b_size = pred.shape[0]
         num_samples += b_size
+        psnr_per_sample = calc_psnr_per_sample(pred, gt)
+        ssim_per_sample = ssim(pred, gt, size_average=False)
+        mae_per_sample = torch.mean(torch.abs(pred - gt).flatten(1), dim=1)
 
         psnr_res.add(calc_psnr(pred, gt).item(), b_size)
         ssim_res.add(ssim(pred, gt).item(), b_size)
         mae_res.add(torch.mean(torch.abs(pred - gt)).item(), b_size)
         rec_loss_res.add(rec_loss.item(), b_size)
+
+        for offset in range(b_size):
+            sample_index = batch_start + offset
+            sample_rows.append(
+                {
+                    "index": sample_index,
+                    "sample": sample_paths[sample_index] if sample_paths else "",
+                    "PSNR": psnr_per_sample[offset].item(),
+                    "SSIM": ssim_per_sample[offset].item(),
+                    "MAE": mae_per_sample[offset].item(),
+                    "rec_loss": rec_loss_per_sample[offset].item(),
+                }
+            )
 
         pbar.set_description(
             f"samples: {num_samples}, psnr: {psnr_res.item():.4f}, "
@@ -123,11 +161,39 @@ def evaluate(args):
     }
 
     timestamp = time.strftime("%Y-%m-%dT%H-%M-%S")
-    metrics_path = args.output or os.path.join(output_dir, f"first_stage_eval_metrics_{timestamp}.yaml")
-    os.makedirs(os.path.dirname(os.path.abspath(metrics_path)), exist_ok=True)
-    OmegaConf.save(config=OmegaConf.create(metrics), f=metrics_path)
+    sample_log_path = args.sample_log or os.path.join(output_dir, f"first_stage_eval_samples_{timestamp}.log")
+    os.makedirs(os.path.dirname(os.path.abspath(sample_log_path)), exist_ok=True)
+    with open(sample_log_path, "w", encoding="utf-8", newline="") as f:
+        for row in sample_rows:
+            f.write(
+                " ".join(
+                    [
+                        f"index={row['index']}",
+                        f"sample={row['sample']}",
+                        f"PSNR={row['PSNR']:.8g}",
+                        f"SSIM={row['SSIM']:.8g}",
+                        f"MAE={row['MAE']:.8g}",
+                        f"rec_loss={row['rec_loss']:.8g}",
+                    ]
+                )
+                + "\n"
+            )
+        f.write(
+            " ".join(
+                [
+                    "average=true",
+                    f"split={metrics['split']}",
+                    f"num_samples={metrics['num_samples']}",
+                    f"PSNR={metrics['PSNR']:.8g}",
+                    f"SSIM={metrics['SSIM']:.8g}",
+                    f"MAE={metrics['MAE']:.8g}",
+                    f"rec_loss={metrics['rec_loss']:.8g}",
+                ]
+            )
+            + "\n"
+        )
 
-    print(f"Saved metrics to {metrics_path}")
+    print(f"Saved per-sample and average metrics to {sample_log_path}")
     print(OmegaConf.to_yaml(OmegaConf.create(metrics)))
 
 
@@ -141,7 +207,7 @@ def parse_args():
     parser.add_argument("--batch_size", type=int, default=None)
     parser.add_argument("--size", type=int, default=None, help="Override dataset image size")
     parser.add_argument("--device", type=str, default=None, help="Example: cuda, cuda:0, or cpu")
-    parser.add_argument("--output", type=str, default=None, help="Metrics yaml output path")
+    parser.add_argument("--sample_log", type=str, default=None, help="Per-sample metrics log output path")
     return parser.parse_args()
 
 
