@@ -22,3 +22,6 @@ log_images/
 /lsun/*
 /requirements.txt
 /important commands.txt
+logs/*
+
+*.log
