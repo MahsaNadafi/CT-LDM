@@ -1,0 +1,30 @@
+# Evaluation only. This file never creates or modifies train/validation/test splits.
+experiment:
+  path: logs/2026-03-05T13-16-36_ldm_sr_16_32x32x32_256
+  project_config: null  # inferred from experiment/configs when null
+  checkpoints:
+    - epoch=000058.ckpt
+    - epoch=000149.ckpt
+    - epoch=000181.ckpt
+
+evaluation:
+  split: test
+  lr_size: 32
+  scale_ratio: 8
+  sample_counts: [100, 500, -1]  # -1 evaluates the complete existing manifest
+  ddim_steps: [100, 200, 500, 1000]
+  eta: 0.0
+  seed: 23
+
+runtime:
+  batch_size: 1
+  device: cuda
+  use_ema: true
+  lpips: false
+
+output:
+  metrics_dir: null  # defaults to the experiment directory
+  tag: x8
+  save_metrics: true
+  save_images: false
+  verbose: false

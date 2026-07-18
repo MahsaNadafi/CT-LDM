@@ -44,9 +44,20 @@ def make_beta_schedule(schedule, n_timestep, linear_start=1e-4, linear_end=2e-2,
 
 
 def make_ddim_timesteps(ddim_discr_method, num_ddim_timesteps, num_ddpm_timesteps, verbose=True):
+    if not 1 <= num_ddim_timesteps <= num_ddpm_timesteps:
+        raise ValueError(
+            f"num_ddim_timesteps must be in [1, {num_ddpm_timesteps}], got {num_ddim_timesteps}"
+        )
     if ddim_discr_method == 'uniform':
+        if num_ddim_timesteps == num_ddpm_timesteps:
+            # The usual +1 convention below would otherwise produce the
+            # out-of-bounds index num_ddpm_timesteps.
+            steps_out = np.arange(num_ddpm_timesteps, dtype=np.int64)
+            if verbose:
+                print(f'Selected timesteps for ddim sampler: {steps_out}')
+            return steps_out
         c = num_ddpm_timesteps // num_ddim_timesteps
-        ddim_timesteps = np.asarray(list(range(0, num_ddpm_timesteps, c)))
+        ddim_timesteps = np.asarray(list(range(0, num_ddpm_timesteps, c)))[:num_ddim_timesteps]
     elif ddim_discr_method == 'quad':
         ddim_timesteps = ((np.linspace(0, np.sqrt(num_ddpm_timesteps * .8), num_ddim_timesteps)) ** 2).astype(int)
     else:

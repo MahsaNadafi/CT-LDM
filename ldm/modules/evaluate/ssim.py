@@ -66,10 +66,6 @@ def _ssim(
         ).clamp(min=1)
         return ssim_map
 
-    import pdb
-
-    pdb.set_trace
-
     if size_average:
         return ssim_map.mean()
     else:

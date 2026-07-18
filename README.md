@@ -86,16 +86,57 @@ python main.py \
 
 ## Evaluation
 
-### Arbitrary-Scale Super-Resolution
+### Paper-comparable protocol
+
+The attached ICEE 2025 paper reports the following held-out test results:
+
+| Scale | LR -> HR | PSNR | SSIM |
+|---:|---:|---:|---:|
+| x8 | 32 -> 256 | 29.811 | 0.841 |
+| x4 | 64 -> 256 | 33.073 | 0.907 |
+| x2 | 128 -> 256 | 40.385 | 0.959 |
+
+A direct reproduction requires the paper's exact patient manifests: 12,584
+training slices, 154 validation slices (four patients), and 2,230 test slices
+(58 patients). Numbers from a different split are useful diagnostics but are
+not directly comparable to the table above.
+
+Evaluate every test slice with deterministic DDIM sampling and EMA weights:
 
 ```bash
-python eval_sr.py --exp logs/<exp_path> --lr_size <input_lr_size> --scale_ratio <scale>
+python eval_sr.py \
+  --exp logs/<exp_path> \
+  --ckpt logs/<exp_path>/checkpoints/<checkpoint>.ckpt \
+  --split test \
+  --lr_size 32 \
+  --scale_ratio 8 \
+  --num_samples -1 \
+  --batch_size 1 \
+  --steps 100 \
+  --eta 0 \
+  --seed 23 \
+  --use_ema true
+```
+
+Repeat with `--lr_size 64 --scale_ratio 4` and `--lr_size 128
+--scale_ratio 2`. The saved YAML includes the paper target and the metric gap.
+
+Use `--num_samples 100`, `--num_samples 500`, or `--num_samples -1` to
+evaluate a subset or the complete existing test manifest. This option only
+limits evaluation and never regenerates or changes the data split.
+
+To sweep multiple checkpoints, DDIM step counts, and test-set sizes, edit
+`configs/evaluation/ldm_sr_32_256.yaml` and run:
+
+```bash
+python eval_sr.py --eval_config configs/evaluation/ldm_sr_32_256.yaml
 ```
 
 ### Metrics
 - PSNR
 - SSIM
 - MAE
+- LPIPS (optional with `--lpips true`; not used in the paper comparison)
 
 ---
 
@@ -108,10 +149,11 @@ Research use only. Not clinically validated.
 ## Citation
 
 ```bibtex
-@inproceedings{kim2024arbitraryscale,
-  title={Arbitrary-Scale Image Generation and Upsampling using Latent Diffusion Model and Implicit Neural Decoder},
-  author={Kim, Jinseok and Kim, Tae-Kyun},
-  booktitle={CVPR},
-  year={2024}
+@inproceedings{nadafi2025ct,
+  title={CT Super-Resolution Using Arbitrary Scale Diffusion Model},
+  author={Nadafi Ghahnavieh, Mahsa and Masoudnia, Saeed and Soltanian-Zadeh, Hamid},
+  booktitle={2025 33rd International Conference on Electrical Engineering (ICEE)},
+  year={2025},
+  doi={10.1109/ICEE67339.2025.11213738}
 }
 ```

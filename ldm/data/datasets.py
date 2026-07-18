@@ -27,7 +27,9 @@ class DatasetBase(Dataset):
                 self.image_paths = f.read().splitlines()
         else:
             self.image_paths = sorted(os.listdir(data_root))
-        if first_k is not None:
+        # Treat non-positive limits as "all". This is useful for CLI evaluation,
+        # where -1 conventionally means no limit rather than dropping one item.
+        if first_k is not None and first_k > 0:
             self.image_paths = self.image_paths[:first_k]
         self._length = len(self.image_paths)
         self.labels = {
@@ -88,4 +90,3 @@ class CTSRValidation(DatasetBase):
 class CTSRTest(DatasetBase):
     def __init__(self, **kwargs):
         super().__init__(txt_file="data/test.txt", data_root="", **kwargs)
-
