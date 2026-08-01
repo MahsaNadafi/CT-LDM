@@ -77,11 +77,11 @@ class FirstStageModel(pl.LightningModule):
                 param.requires_grad = False
 
     def init_from_ckpt(self, path, ignore_keys=list()):
-        ckpt = torch.load(path, map_location="cpu")
+        ckpt = torch.load(path, map_location="cpu", weights_only=False)
         if 'state_dict' in ckpt:
-            sd = torch.load(path, map_location="cpu")["state_dict"]
+            sd = ckpt["state_dict"]
         elif 'model' in ckpt:
-            sd = torch.load(path, map_location="cpu")["model"]['sd']
+            sd = ckpt["model"]['sd']
         else:
             raise NotImplementedError
 

@@ -1,4 +1,16 @@
-import argparse, os, sys, datetime, glob, importlib
+import argparse, os, sys, datetime, glob, importlib, warnings
+
+# Suppress known deprecations emitted while importing this legacy Lightning stack.
+warnings.filterwarnings(
+    "ignore",
+    message=r"`TorchScript` support for functional optimizers is deprecated.*",
+    category=DeprecationWarning,
+)
+warnings.filterwarnings(
+    "ignore",
+    message=r"`torch\.distributed\._sharded_tensor` will be deprecated.*",
+    category=DeprecationWarning,
+)
 import numpy as np
 import time
 import torch
@@ -27,8 +39,8 @@ def rank_zero_print(*args):
     print(*args)
 
 
-class KeyValueLogger(pl.loggers.TestTubeLogger):
-    """Write Lightning metrics as plain key=value log lines."""
+class KeyValueLogger(pl.loggers.TensorBoardLogger):
+    """Log TensorBoard events and retain plain key=value metric logs."""
 
     def __init__(self, *args, filename=None, **kwargs):
         super().__init__(*args, **kwargs)
@@ -54,6 +66,7 @@ class KeyValueLogger(pl.loggers.TestTubeLogger):
 
     @rank_zero_only
     def log_metrics(self, metrics, step=None):
+        super().log_metrics(metrics, step)
         os.makedirs(self.save_dir, exist_ok=True)
         log_path = os.path.join(self.save_dir, self.filename)
 
@@ -65,6 +78,14 @@ class KeyValueLogger(pl.loggers.TestTubeLogger):
 
         with open(log_path, "a", encoding="utf-8") as f:
             f.write(" ".join(parts) + "\n")
+
+
+def uses_multiple_gpus(gpus):
+    if isinstance(gpus, (list, tuple)):
+        return len(gpus) > 1
+    if isinstance(gpus, int):
+        return gpus > 1
+    return len([gpu for gpu in str(gpus).split(",") if gpu.strip()]) > 1
 
 def modify_weights(w, scale = 1e-6, n=2):
     """Modify weights to accomodate concatenation to unet"""
@@ -353,7 +374,7 @@ class ImageLogger(Callback):
         self.batch_freq = batch_frequency
         self.max_images = max_images
         self.logger_log_images = {
-            pl.loggers.TestTubeLogger: self._testtube,
+            KeyValueLogger: self._testtube,
         }
         self.log_steps = [2 ** n for n in range(int(np.log2(self.batch_freq)) + 1)]
         if not increase_log_steps:
@@ -490,7 +511,7 @@ class SingleImageLogger(Callback):
         self.batch_freq = batch_frequency
         self.max_images = max_images
         self.logger_log_images = {
-            pl.loggers.TestTubeLogger: self._testtube,
+            KeyValueLogger: self._testtube,
         }
         self.log_steps = [2 ** n for n in range(int(np.log2(self.batch_freq)) + 1)]
         if not increase_log_steps:
@@ -683,14 +704,12 @@ if __name__ == "__main__":
         lightning_config = config.pop("lightning", OmegaConf.create())
         # merge trainer cli with config
         trainer_config = lightning_config.get("trainer", OmegaConf.create())
-        # default to ddp
-        trainer_config["accelerator"] = "ddp"
         for k in nondefault_trainer_args(opt):
             trainer_config[k] = getattr(opt, k)
-        if not "gpus" in trainer_config:
-            del trainer_config["accelerator"]
-        else:
+        if "gpus" in trainer_config:
             gpuinfo = trainer_config["gpus"]
+            if uses_multiple_gpus(gpuinfo):
+                trainer_config["strategy"] = "ddp"
             rank_zero_print(f"Running on GPUs {gpuinfo}")
             cpu = False
         trainer_opt = argparse.Namespace(**trainer_config)
@@ -702,7 +721,9 @@ if __name__ == "__main__":
 
         if not opt.finetune_from == "":
             rank_zero_print(f"Attempting to load state from {opt.finetune_from}")
-            old_state = torch.load(opt.finetune_from, map_location="cpu")
+            old_state = torch.load(
+                opt.finetune_from, map_location="cpu", weights_only=False
+            )
             if "state_dict" in old_state:
                 rank_zero_print(f"Found nested key 'state_dict' in checkpoint, loading this instead")
                 old_state = old_state["state_dict"]
@@ -730,6 +751,11 @@ if __name__ == "__main__":
             if len(u) > 0:
                 rank_zero_print("unexpected keys:")
                 rank_zero_print(u)
+
+            # --finetune_from restores the checkpoint's learned latent
+            # scale_factor, so do not recalculate it from the first new batch.
+            if hasattr(model, "restarted_from_ckpt"):
+                model.restarted_from_ckpt = True
 
         # trainer and callbacks
         trainer_kwargs = dict()
