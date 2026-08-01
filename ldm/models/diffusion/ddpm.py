@@ -1563,10 +1563,18 @@ class DiffusionWrapper(pl.LightningModule):
 
 
 class SRDiffusion(LatentDiffusion):
-    def __init__(self, inp_size, c_encode=False, *args, **kwargs):
+    def __init__(self, inp_size, c_encode=False, cond_upsample_mode="nearest", *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.inp_size = inp_size
         self.c_encode = c_encode
+        self.cond_upsample_mode = cond_upsample_mode
+
+    def upsample_condition(self, c, size):
+        """Upsample LR conditioning while keeping the interpolation experiment explicit."""
+        kwargs = {"size": size, "mode": self.cond_upsample_mode}
+        if self.cond_upsample_mode in {"linear", "bilinear", "bicubic", "trilinear"}:
+            kwargs["align_corners"] = False
+        return F.interpolate(c, **kwargs)
 
     @torch.no_grad()
     def get_input(self, batch, k, return_first_stage_outputs=False, force_c_encode=False,
@@ -1586,12 +1594,12 @@ class SRDiffusion(LatentDiffusion):
         xc = c.clone()
 
         if self.c_encode:
-            xc = F.interpolate(c, size=self.image_size, mode='nearest')
-            c = F.interpolate(c, size=self.inp_size, mode='nearest') # TODO modify size
+            xc = self.upsample_condition(c, size=self.image_size)
+            c = self.upsample_condition(c, size=self.inp_size)
             encoder_posterior = self.encode_first_stage(c)
             c = self.get_first_stage_encoding(encoder_posterior).detach()
         else:
-            c = F.interpolate(c, size=self.inp_size, mode='nearest') # TODO modify size
+            c = self.upsample_condition(c, size=self.inp_size)
 
         if self.model.conditioning_key == 'hybrid':
             c = rearrange(c, 'b c h w -> b (h w) c')
