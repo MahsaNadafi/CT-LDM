@@ -25,3 +25,4 @@ log_images/
 logs/*
 
 *.log
+*.DS_Store
