@@ -1,11 +1,11 @@
 # Evaluation only. This file never creates or modifies train/validation/test splits.
 # `cond_upsample_mode: bicubic` is loaded from the experiment's saved project config.
 experiment:
-  path: logs/2026-08-07T15-00-23_ldm_sr_32_256_e181_again
+  path: logs/2026-08-07T16-26-21_ldm_sr_32_256_e181_bicubic
   project_config: null  # inferred from experiment/configs when null
   checkpoints:
-    - epoch=000277.ckpt
-    - epoch=000388.ckpt
+    - epoch=000000.ckpt
+    - epoch=000295.ckpt
     - epoch=000314.ckpt
 
 evaluation:
@@ -18,14 +18,14 @@ evaluation:
   seed: 23
 
 runtime:
-  batch_size: 4
+  batch_size: 8
   device: cuda
   use_ema: true
   lpips: false
 
 output:
-  metrics_dir: logs/evaluation/2026-08-07T15-00-23_ldm_sr_32_256_e181_again
-  tag: x8
+  metrics_dir: logs/evaluation/2026-08-07T16-26-21_ldm_sr_32_256_e181_bicubic
+  tag: x8_bicubic
   save_metrics: true
   save_images: false
   verbose: false
