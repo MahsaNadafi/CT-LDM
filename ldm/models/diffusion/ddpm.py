@@ -536,6 +536,7 @@ class LatentDiffusion(DDPM):
                  conditioning_key=None,
                  scale_factor=1.0,
                  scale_by_std=False,
+                 first_stage_latent_mode="sample",
                  unet_trainable=True,
                  *args, **kwargs):
         self.num_timesteps_cond = default(num_timesteps_cond, 1)
@@ -553,6 +554,12 @@ class LatentDiffusion(DDPM):
         self.cond_stage_trainable = cond_stage_trainable
         self.unet_trainable = unet_trainable
         self.cond_stage_key = cond_stage_key
+        if first_stage_latent_mode not in {"sample", "mode"}:
+            raise ValueError(
+                "first_stage_latent_mode must be either 'sample' or 'mode', "
+                f"got {first_stage_latent_mode!r}"
+            )
+        self.first_stage_latent_mode = first_stage_latent_mode
         try:
             self.num_downs = len(first_stage_config.params.ddconfig.ch_mult) - 1
         except:
@@ -646,7 +653,10 @@ class LatentDiffusion(DDPM):
 
     def get_first_stage_encoding(self, encoder_posterior):
         if isinstance(encoder_posterior, DiagonalGaussianDistribution):
-            z = encoder_posterior.sample()
+            if self.first_stage_latent_mode == "mode":
+                z = encoder_posterior.mode()
+            else:
+                z = encoder_posterior.sample()
         elif isinstance(encoder_posterior, torch.Tensor):
             z = encoder_posterior
         else:
